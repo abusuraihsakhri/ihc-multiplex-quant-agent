@@ -1,7 +1,7 @@
 # IHC Multiplex Quant Agent
 
 > **Domain:** Digital Pathology & Quantitative Histopathology  
-> **Reference Guidelines & Standards:** `College of American Pathologists (CAP) Synoptic Protocols & DICOM WSI`
+> **Reference Guidelines & Standards:** College of American Pathologists (CAP) Synoptic Protocols & DICOM WSI
 
 <div align="center">
 
@@ -18,80 +18,102 @@
 
 ## 📖 What It Does
 
-**IHC Multiplex Quant Agent** is an advanced analytical and computational platform implementing Multiplex Immunofluorescence Spatial Phenotyping Agent (CD3/CD8/FoxP3/PD-L1).
+**IHC Multiplex Quant Agent** is an analytical and computational platform implementing Multiplex Immunofluorescence Spatial Phenotyping (CD3/CD8/FoxP3/PD-L1). It provides multi-agent consensus evaluation, HMAC-SHA256 tamper-evident audit logging, and zero-PHI outbound data protection.
 
 ---
 
-## ⚙️ Key Capabilities & Algorithmic Modules
+## ⚙️ Key Capabilities & Architecture
 
-### 🔬 Core Algorithmic & Evaluation Engines
+### Core Modules
 
-- **`Severity`** — dedicated module for severity evaluation and state verification.
-- **`DomainKnowledgeRegistry`**: Enterprise domain rules, guideline matrices, and evidence benchmarks.
-- **`AgentAlert`** — dedicated module for agent alert evaluation and state verification.
-- **`StainDeconvolutionAgent`**: Specialized Sub-Agent 1 for ihc-multiplex-quant-agent
-- **`NuclearSegmentationAgent`**: Specialized Sub-Agent 2 for ihc-multiplex-quant-agent
-- **`SpatialImmunePhenotyperAgent`**: Specialized Sub-Agent 3 for ihc-multiplex-quant-agent
+- **`agents/supervisor.py`** — Master orchestrator coordinating multi-worker evaluations with PHI validation.
+- **`agents/base.py`** — Enterprise security layer: Zero-PHI outbound guard, HMAC-SHA256 audit trail, and action executor.
+- **`agents/workers.py`** — Specialized evaluation workers: `InvariantQCWorker`, `SafetyEscalationWorker`, `ProtocolConformanceWorker`.
+- **`agents/models.py`** — Pydantic v2 schemas for task payloads, alerts, and consensus dossiers.
+- **`agents/llm_factory.py`** — Pluggable LLM adapter supporting Ollama, Claude, OpenAI, and deterministic mock.
+- **`agents/metrics.py`** — Prometheus metrics exporter for operational telemetry.
+- **`agents/api.py`** — FastAPI REST server exposing `/health`, `/metrics`, `/api/audit`, `/api/chat`, `/api/audit/logs`.
+
+### Domain Engines (enrichment.py)
+
+- **`OverviewEngine`** — Baseline threshold monitoring.
+- **`Enrichment1ImmuneHotcoldPhenotypeScoringWithSpatialContextEngine`** — Immune microenvironment classification.
+- **`Enrichment2Pdl1CombinedPositiveScoreCpsComputationEngine`** — PD-L1 CPS per KEYNOTE guidelines.
+- **`Enrichment3SpatialDistanceMatrixForTumorinfiltratingLymphocytesEngine`** — Spatial distance computation.
+- **`Enrichment4Cd8foxp3RatioWithPrognosticStratificationEngine`** — CD8/FoxP3 prognostic scoring.
+
+### Specialized Agents (ihc_multiplex.py, ihc_multiplex_quant_agent/)
+
+- **`StainDeconvolutionAgent`** — Primary metric and stain quality auditor.
+- **`NuclearSegmentationAgent`** — STAT kinetics and escalation auditor.
+- **`SpatialImmunePhenotyperAgent`** — Biomarker concordance triager.
 
 ---
 
-## 💻 CLI Quickstart & Usage
+## 💻 Installation
 
-### 1. Guided Interactive Mode
 ```bash
-python cli.py
+pip install -e .
 ```
 
-### 2. Direct Parameterized Evaluation
+---
+
+## 💻 CLI Usage
+
+### 1. Run Single Audit
 ```bash
-python cli.py --task-id <value> --target <value> --primary <value> --secondary <value>
+python cli.py audit --task-id TASK-001 --target SPECIMEN-01 --primary 28.5 --secondary 14.2 --status DISCORDANT
 ```
 
-### Parameter Reference
-- `--task-id`: Specifies input measurement or parameter value.
-- `--target`: Specifies input measurement or parameter value.
-- `--primary`: Specifies input measurement or parameter value.
-- `--secondary`: Specifies input measurement or parameter value.
-- `--critical`: Specifies input measurement or parameter value.
-- `--status`: Specifies input measurement or parameter value.
-- `--input`: Specifies input measurement or parameter value.
-- `--output`: Specifies input measurement or parameter value.
+### 2. Query Supervisory Chat
+```bash
+python cli.py chat "What is the system status?"
+```
 
-### Input Data Schema
+### 3. Batch Process CSV
+```bash
+python cli.py batch -i sample.csv -o results.csv
+```
 
-| Field | Description | Requirement |
-|:------|:------------|:------------|
-| `case_id` | Parameter / observation metric | Required |
-| `patient_synthetic_id` | Parameter / observation metric | Required |
-| `metric_primary` | Parameter / observation metric | Required |
-| `metric_secondary` | Parameter / observation metric | Required |
-| `is_stat` | Parameter / observation metric | Required |
-| `status_flag` | Parameter / observation metric | Required |
+### 4. Verify Audit Integrity
+```bash
+python cli.py verify-audit
+```
 
----
-
-## 🛡️ Security & Enterprise Architecture
-
-* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
-* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
+### 5. Launch REST API Server
+```bash
+python cli.py serve --host 127.0.0.1 --port 8000
+```
 
 ---
 
-## 🧪 Testing & Verification
+## 🛡️ Security Architecture
 
-Run the automated test suite:
+- **Zero-PHI Outbound Interceptor:** Active regex inspection blocking SSNs, MRNs, phone numbers, emails, and patient identifiers.
+- **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation. Set `AUDIT_SECRET_KEY` environment variable for persistent key material.
+- **PHI Redaction:** Automatic redaction of detected identifiers in outbound responses.
+- **LLM Agnostic Adapter:** Deterministic mock provider for testing; supports Ollama, Claude, and OpenAI for production.
+
+---
+
+## 🧪 Testing
+
+Run the full test suite:
 
 ```bash
 pytest -v
 ```
 
-Execute high-throughput batch simulation benchmarks:
+Run with coverage:
 
 ```bash
-python simulator.py --tasks 1000 --concurrency 8
+pytest -v --cov=agents --cov-report=term-missing
+```
+
+Execute high-throughput simulation benchmarks:
+
+```bash
+python simulator.py 100
 ```
 
 ---
@@ -102,3 +124,27 @@ python simulator.py --tasks 1000 --concurrency 8
 docker build -t ihc-multiplex-quant-agent .
 docker run -p 8000:8000 ihc-multiplex-quant-agent
 ```
+
+Or with Docker Compose:
+
+```bash
+docker-compose up
+```
+
+---
+
+## 📊 Prometheus Metrics
+
+The `/metrics` endpoint exposes operational counters:
+
+- `system_tasks_total` — Total tasks processed
+- `alerts_triggered_total` — Alerts by urgency tier
+- `phi_outbound_blocks_total` — PHI interceptions
+- `audit_chain_blocks_total` — Signed audit blocks
+- `task_processing_duration_avg_seconds` — Average latency
+
+---
+
+## 📄 License
+
+MIT License. See [LICENSE](LICENSE) for details.

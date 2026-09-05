@@ -23,6 +23,22 @@ def test_phi_guard_enforcement():
     PHIGuard.assert_no_phi("Analytical assay specimen KEY-001 optimal")
 
 
+def test_phi_guard_redaction():
+    redacted = PHIGuard.redact_phi("Contact patient at 555-123-4567 for follow-up")
+    assert "555-123-4567" not in redacted
+    assert "[REDACTED_IDENTIFIER]" in redacted
+
+
+def test_phi_guard_ssn_pattern():
+    with pytest.raises(SecurityException):
+        PHIGuard.assert_no_phi("Patient SSN: 123-45-6789 registered in system")
+
+
+def test_phi_guard_email_pattern():
+    with pytest.raises(SecurityException):
+        PHIGuard.assert_no_phi("Send results to patient@example.com")
+
+
 def test_specialized_workers():
     # Worker 1: QC Invariant
     p1 = SystemTaskPayload(task_id="T1", target_identifier="KEY-01", primary_metric=35.0)
@@ -63,3 +79,28 @@ def test_supervisor_consensus_and_audit():
     assert main(["audit", "--task-id", "CLI-TEST-01"]) == 0
     assert main(["chat", "Explain", "specifications"]) == 0
     assert main(["verify-audit"]) == 0
+
+
+def test_supervisor_blocks_phi_in_task_id():
+    supervisor = SystemSupervisor(model_provider="mock")
+    payload = SystemTaskPayload(
+        task_id="Patient John Doe MRN-12345",
+        target_identifier="KEY-01",
+        primary_metric=10.0,
+    )
+    with pytest.raises(SecurityException):
+        supervisor.process_task(payload)
+
+
+def test_enrichment_suite_unique_engines():
+    """Verify all enrichment engines produce distinct results."""
+    from enrichment import IhcmultiplexquantagentEnrichmentSuite
+    suite = IhcmultiplexquantagentEnrichmentSuite()
+    res = suite.execute_all(primary_val=0.5, secondary_val=0.2)
+    assert len(res) == 6
+    assert "OverviewEngine" in res
+    assert "ImplementationEngine" in res
+    assert "Enrichment1ImmuneHotcoldPhenotypeScoringWithSpatialContextEngine" in res
+    assert "Enrichment2Pdl1CombinedPositiveScoreCpsComputationEngine" in res
+    assert "Enrichment3SpatialDistanceMatrixForTumorinfiltratingLymphocytesEngine" in res
+    assert "Enrichment4Cd8foxp3RatioWithPrognosticStratificationEngine" in res
