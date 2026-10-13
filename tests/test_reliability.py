@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from agents.base import AuditTrail, PHIGuard, SecurityException
 from agents.models import SystemTaskPayload
+from agents.llm_factory import LLMFactory
 from agents.supervisor import SystemSupervisor
 from ihc_multiplex_quant_agent.pdl1_scorer import compute_pdl1_cps, PDL1Scorer
 from ihc_multiplex_quant_agent.spatial_analysis import SpatialAnalyzer, compute_spatial_distances
@@ -79,3 +80,13 @@ def test_cps_invalid_counts():
     assert not compute_pdl1_cps(100, 101, 0)["valid"]
     assert not compute_pdl1_cps(100, 50, -1)["valid"]
     assert not PDL1Scorer().compute_tps(100, 101)["valid"]
+
+
+def test_unimplemented_llm_provider_is_not_silently_mocked():
+    with pytest.raises(ValueError, match="not implemented"):
+        LLMFactory.create("openai")
+
+
+def test_mock_does_not_claim_clinical_verification():
+    response = LLMFactory.create("mock").invoke("system status")
+    assert "No model inference or clinical verification" in response
