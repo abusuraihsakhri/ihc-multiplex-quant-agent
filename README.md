@@ -1,150 +1,70 @@
 # IHC Multiplex Quant Agent
 
-> **Domain:** Digital Pathology & Quantitative Histopathology  
-> **Reference Guidelines & Standards:** College of American Pathologists (CAP) Synoptic Protocols & DICOM WSI
+Research-oriented tools for summarizing multiplex immunohistochemistry (IHC) cell counts, PD-L1 positivity, and spatial cell-coordinate data.
 
-<div align="center">
+## Browser calculator
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+The static application is in [`web/`](web/) with a root redirect in `index.html` for GitHub Pages. It runs entirely client-side in JavaScript, without a Python runtime or backend service.
 
-</div>
+Enter six aggregate values: viable tumor cell count, PD-L1-positive tumor and immune cell counts, CD8 and FoxP3 counts, and analyzed tissue area in mm². Select **Calculate metrics** to obtain:
 
----
+- PD-L1 combined positive score (CPS) and tumor proportion score (TPS).
+- CD8 and FoxP3 cell densities per mm².
+- CD8/FoxP3 count ratio (reported as undefined when the denominator is zero).
+- JSON and CSV downloads containing the current inputs and calculated outputs.
 
-## 📖 What It Does
+The calculation uses `CPS = min(100, 100 × (positive tumor cells + positive lymphocytes/macrophages) / viable tumor cells)` and `TPS = 100 × positive tumor cells / viable tumor cells`. It validates non-negative whole-cell counts and requires at least 100 viable tumor cells for these illustrative scores. Results are **descriptive only**. Clinical scoring adequacy, tumor indication, assay selection, interpretation, and eligibility for treatment require independent validation.
 
-**IHC Multiplex Quant Agent** is an analytical and computational platform implementing Multiplex Immunofluorescence Spatial Phenotyping (CD3/CD8/FoxP3/PD-L1). It provides multi-agent consensus evaluation, HMAC-SHA256 tamper-evident audit logging, and zero-PHI outbound data protection.
+The browser application does not analyze microscopy images, segment nuclei, load WSI files, or diagnose specimens. It does not upload inputs, call external APIs, or persist entered values. Use de-identified aggregate data.
 
----
+## Python workflows
 
-## ⚙️ Key Capabilities & Architecture
+This repository also retains two command-line engines and REST interfaces:
 
-### Core Modules
+- `python cli.py` operates the task-audit supervisor under `agents/` (audit, chat, batch, verify-audit, serve).
+- `python -m ihc_multiplex_quant_agent.cli` runs the additional case-oriented coordinator. The installed command `ihc-multiplex-quant-engine` invokes this interface.
+- `ihc_multiplex_quant_agent.pdl1_scorer` provides arithmetic CPS and TPS helpers; `spatial_analysis` computes centroid-distance summaries and grid hotspots.
+- `ihc_multiplex.py` and `enrichment.py` contain legacy/experimental rule-based modules, not validated computational pathology pipelines.
 
-- **`agents/supervisor.py`** — Master orchestrator coordinating multi-worker evaluations with PHI validation.
-- **`agents/base.py`** — Enterprise security layer: Zero-PHI outbound guard, HMAC-SHA256 audit trail, and action executor.
-- **`agents/workers.py`** — Specialized evaluation workers: `InvariantQCWorker`, `SafetyEscalationWorker`, `ProtocolConformanceWorker`.
-- **`agents/models.py`** — Pydantic v2 schemas for task payloads, alerts, and consensus dossiers.
-- **`agents/llm_factory.py`** — Pluggable LLM adapter supporting Ollama, Claude, OpenAI, and deterministic mock.
-- **`agents/metrics.py`** — Prometheus metrics exporter for operational telemetry.
-- **`agents/api.py`** — FastAPI REST server exposing `/health`, `/metrics`, `/api/audit`, `/api/chat`, `/api/audit/logs`.
+These components are distinct from the browser calculator. The server requires a Python host and **cannot run within GitHub Pages**. Threshold rules and advisory statements in the legacy supervisor should not be treated as published clinical thresholds or validated diagnostic recommendations.
 
-### Domain Engines (enrichment.py)
+## Install and test
 
-- **`OverviewEngine`** — Baseline threshold monitoring.
-- **`Enrichment1ImmuneHotcoldPhenotypeScoringWithSpatialContextEngine`** — Immune microenvironment classification.
-- **`Enrichment2Pdl1CombinedPositiveScoreCpsComputationEngine`** — PD-L1 CPS per KEYNOTE guidelines.
-- **`Enrichment3SpatialDistanceMatrixForTumorinfiltratingLymphocytesEngine`** — Spatial distance computation.
-- **`Enrichment4Cd8foxp3RatioWithPrognosticStratificationEngine`** — CD8/FoxP3 prognostic scoring.
-
-### Specialized Agents (ihc_multiplex.py, ihc_multiplex_quant_agent/)
-
-- **`StainDeconvolutionAgent`** — Primary metric and stain quality auditor.
-- **`NuclearSegmentationAgent`** — STAT kinetics and escalation auditor.
-- **`SpatialImmunePhenotyperAgent`** — Biomarker concordance triager.
-
----
-
-## 💻 Installation
+Python 3.9 or newer is required for the package; a compatible Pydantic v2 is installed as a core dependency.
 
 ```bash
-pip install -e .
+python -m pip install -e '.[server,test]'
+pytest -q
+node --check web/quantify.js
+node --check web/app.js
+node --test web/quantify.test.cjs
 ```
 
----
+The browser tests use Node.js 22. The static calculator runs in current Chromium, Firefox, and Safari versions with modern JavaScript support; automated browser compatibility testing has not been established.
 
-## 💻 CLI Usage
+Example task audit:
 
-### 1. Run Single Audit
 ```bash
 python cli.py audit --task-id TASK-001 --target SPECIMEN-01 --primary 28.5 --secondary 14.2 --status DISCORDANT
-```
-
-### 2. Query Supervisory Chat
-```bash
-python cli.py chat "What is the system status?"
-```
-
-### 3. Batch Process CSV
-```bash
 python cli.py batch -i sample.csv -o results.csv
-```
-
-### 4. Verify Audit Integrity
-```bash
 python cli.py verify-audit
-```
-
-### 5. Launch REST API Server
-```bash
 python cli.py serve --host 127.0.0.1 --port 8000
 ```
 
----
+The local API exposes `/health`, `/metrics`, `/api/audit`, `/api/chat`, and `/api/audit/logs`; requests follow the `agents.models.SystemTaskPayload` schema.
 
-## 🛡️ Security Architecture
+## Security and limits
 
-- **Zero-PHI Outbound Interceptor:** Active regex inspection blocking SSNs, MRNs, phone numbers, emails, and patient identifiers.
-- **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation. Set `AUDIT_SECRET_KEY` environment variable for persistent key material.
-- **PHI Redaction:** Automatic redaction of detected identifiers in outbound responses.
-- **LLM Agnostic Adapter:** Deterministic mock provider for testing; supports Ollama, Claude, and OpenAI for production.
+The browser application does not transmit data. The Python API provides heuristic pattern-based identifier checks; **these are not complete PHI de-identification or a guarantee of HIPAA compliance**. Do not submit identifiable patient information. Server audits use a keyed HMAC-SHA256 chain stored in process memory. Set a cryptographically random `AUDIT_SECRET_KEY` in the server environment. Each HMAC and chain link is checked, but in-memory logs do not establish durable, immutable provenance or detect deletion of the final entries.
 
----
-
-## 🧪 Testing
-
-Run the full test suite:
+Generate a secret and supply it using your deployment platform, without committing its value:
 
 ```bash
-pytest -v
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Run with coverage:
+For Docker Compose, supply `AUDIT_SECRET_KEY` in the host environment before running `docker compose up --build`. See `.env.example` for the expected variable.
 
-```bash
-pytest -v --cov=agents --cov-report=term-missing
-```
+## License
 
-Execute high-throughput simulation benchmarks:
-
-```bash
-python simulator.py 100
-```
-
----
-
-## 🐳 Container Deployment
-
-```bash
-docker build -t ihc-multiplex-quant-agent .
-docker run -p 8000:8000 ihc-multiplex-quant-agent
-```
-
-Or with Docker Compose:
-
-```bash
-docker-compose up
-```
-
----
-
-## 📊 Prometheus Metrics
-
-The `/metrics` endpoint exposes operational counters:
-
-- `system_tasks_total` — Total tasks processed
-- `alerts_triggered_total` — Alerts by urgency tier
-- `phi_outbound_blocks_total` — PHI interceptions
-- `audit_chain_blocks_total` — Signed audit blocks
-- `task_processing_duration_avg_seconds` — Average latency
-
----
-
-## 📄 License
-
-MIT License. See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).

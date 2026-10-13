@@ -3,6 +3,7 @@ Supervisor Orchestrator & Operations Intelligence for Ihc Multiplex Quant Agent.
 Domain: Digital Pathology & Histology Systems
 """
 import uuid
+import json
 from typing import Dict, Any, List, Optional
 from .base import AuditLogger, ActionExecutor, PHIGuard
 from .models import SystemTaskPayload, AgentAlert, ConsensusDossier, UrgencyLevel, SystemIntegrityStatus
@@ -22,9 +23,9 @@ class SystemSupervisor:
 
     def process_task(self, payload: SystemTaskPayload, actor: str = "SystemSupervisor") -> ConsensusDossier:
         # Zero-PHI outbound validation
-        PHIGuard.assert_no_phi(payload.task_id)
-        PHIGuard.assert_no_phi(payload.target_identifier)
-        PHIGuard.assert_no_phi(payload.status_descriptor)
+        # Inspect all nested fields, including free-text attributes, before processing.
+        PHIGuard.assert_no_phi(json.dumps(payload.model_dump(), default=str))
+        PHIGuard.assert_no_phi(actor)
 
         # Multi-worker evaluations
         all_alerts: List[AgentAlert] = []
@@ -75,5 +76,5 @@ class SystemSupervisor:
 
     def query_supervisory_chat(self, query: str) -> str:
         PHIGuard.assert_no_phi(query)
-        prompt = f"Supervisor inquiry for Ihc Multiplex Quant Agent under CAP Cancer Protocols / DICOM WSI PS3.16: {query}"
+        prompt = f"Local demonstration task-audit inquiry: {query}"
         return self.llm.invoke(prompt)
