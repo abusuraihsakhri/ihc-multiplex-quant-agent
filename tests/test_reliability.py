@@ -1,5 +1,4 @@
 """Regression tests for integrity checking and pathology count arithmetic."""
-import copy
 import math
 
 import pytest

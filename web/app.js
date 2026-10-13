@@ -19,6 +19,7 @@ const labels = {
 function clearResults() {
   latest = null;
   results.hidden = true;
+  document.querySelector("#empty").hidden = false;
   exportJson.disabled = true;
   exportCsv.disabled = true;
   output.replaceChildren();
@@ -38,6 +39,7 @@ function render(result) {
   output.replaceChildren(fragment);
   latest = result;
   results.hidden = false;
+  document.querySelector("#empty").hidden = true;
   exportJson.disabled = false;
   exportCsv.disabled = false;
 }

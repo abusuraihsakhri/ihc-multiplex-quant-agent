@@ -3,13 +3,14 @@
 No treatment recommendation or assay-specific clinical eligibility is inferred.
 """
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
 class PDL1CPSResult:
     cps: float
     valid: bool
-    pembrolizumab_eligible: bool | None
+    pembrolizumab_eligible: Optional[bool]
     tumor_cells_counted: int
     pdl1_positive_count: int
     immune_cells_counted: int
