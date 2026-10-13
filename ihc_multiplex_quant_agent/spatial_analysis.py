@@ -50,7 +50,7 @@ def compute_spatial_distances(tumor_centroids: List[dict], immune_centroids: Lis
     return {
         "marker": marker,
         "mean_dist_um": round(sum(min_distances) / n, 2),
-        "median_dist_um": round(min_distances[n // 2], 2),
+        "median_dist_um": round((min_distances[(n - 1) // 2] + min_distances[n // 2]) / 2, 2),
         "max_dist_um": round(max(min_distances), 2),
         "min_dist_um": round(min(min_distances), 2),
         "cell_count": len(immune_centroids),
@@ -63,8 +63,12 @@ class SpatialAnalyzer:
 
     def compute_hotspot_density(self, cells: List[dict], grid_size: int = 100, threshold: int = 5) -> dict:
         """Identify spatial hotspots of immune cell density."""
+        if grid_size <= 0:
+            raise ValueError("grid_size must be positive")
+        if threshold < 1:
+            raise ValueError("threshold must be at least 1")
         if not cells:
-            return {"hotspots": [], "total_cells": 0}
+            return {"hotspots": [], "total_hotspots": 0, "total_cells": 0}
 
         grid = {}
         for c in cells:
@@ -75,7 +79,8 @@ class SpatialAnalyzer:
 
         hotspots = [
             {"grid_x": k[0], "grid_y": k[1], "cell_count": v,
-             "density_per_100um2": round(v / (grid_size * grid_size) * 1e6, 2)}
+             "density_per_100um2": round(v / (grid_size * grid_size) * 100, 2),
+             "density_per_mm2": round(v / (grid_size * grid_size) * 1e6, 2)}
             for k, v in grid.items() if v >= threshold
         ]
 
@@ -90,7 +95,8 @@ class SpatialAnalyzer:
                                            border_width_um: float = 50.0) -> dict:
         """Compute immune cell density within tumor border zone."""
         if not tumor_centroids or not immune_centroids:
-            return {"border_density": 0, "interior_density": 0, "ratio": 0}
+            return {"border_cells": 0, "interior_cells": 0, "exterior_cells": len(immune_centroids),
+                    "border_density_pct": 0.0, "infiltration_pattern": "Not assessable"}
 
         border_cells = 0
         interior_cells = 0
